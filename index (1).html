@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Standard Algorithm Multiplication Guide</title>
+<style>
+  body {
+    font-family: system-ui, -apple-system, sans-serif;
+    max-width: 700px;
+    margin: 0 auto;
+    padding: 16px;
+    background: #f8f9fa;
+    color: #222;
+  }
+  h1 { font-size: 1.4rem; text-align: center; margin-bottom: 0.5rem; }
+  .subtitle { text-align: center; color: #555; margin-bottom: 1.5rem; font-size: 0.95rem; }
+  .input-row {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+  input[type="number"] {
+    font-size: 1.3rem;
+    padding: 8px 12px;
+    width: 140px;
+    border: 2px solid #ccc;
+    border-radius: 8px;
+    text-align: right;
+  }
+  button {
+    font-size: 1.05rem;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    background: #0066cc;
+    color: white;
+    cursor: pointer;
+  }
+  button:disabled { background: #aaa; cursor: not-allowed; }
+  button.secondary { background: #555; }
+  .problem-display {
+    font-family: 'Courier New', monospace;
+    font-size: 1.4rem;
+    background: white;
+    border: 2px solid #ddd;
+    border-radius: 10px;
+    padding: 16px;
+    margin: 16px 0;
+    white-space: pre;
+    line-height: 1.4;
+    min-height: 120px;
+  }
+  .label { color: #0066cc; font-weight: bold; }
+  .step-box {
+    background: #fff3cd;
+    border: 2px solid #ffc107;
+    border-radius: 10px;
+    padding: 16px;
+    margin: 16px 0;
+    font-size: 1.15rem;
+    line-height: 1.5;
+  }
+  .step-box strong { color: #856404; }
+  .input-area {
+    margin-top: 12px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .input-area input {
+    font-size: 1.2rem;
+    width: 100px;
+    padding: 6px 10px;
+    border: 2px solid #ccc;
+    border-radius: 6px;
+  }
+  .feedback {
+    margin-top: 10px;
+    font-weight: bold;
+  }
+  .feedback.correct { color: #28a745; }
+  .feedback.wrong { color: #dc3545; }
+  .write-instruction {
+    margin-top: 12px;
+    padding: 10px;
+    background: #e7f3ff;
+    border-left: 4px solid #0066cc;
+    border-radius: 4px;
+  }
+  .controls {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 12px;
+  }
+  .progress { text-align: center; color: #666; margin-top: 8px; font-size: 0.9rem; }
+  .final-answer {
+    background: #d4edda;
+    border: 2px solid #28a745;
+    border-radius: 10px;
+    padding: 16px;
+    text-align: center;
+    font-size: 1.3rem;
+    font-weight: bold;
+    margin-top: 16px;
+  }
+</style>
+</head>
+<body>
+<h1>Standard Algorithm Multiplication Guide</h1>
+<p class="subtitle">Work on paper while the app walks you through each step.<br>Digits are labeled A, B, C… (top) then D, E, F… (bottom).</p>
+
+<div class="input-row">
+  <input type="number" id="top" placeholder="Top number" min="1" value="78">
+  <span style="font-size:1.4rem;">×</span>
+  <input type="number" id="bottom" placeholder="Bottom number" min="1" value="63">
+  <button onclick="start()">Start Guide</button>
+</div>
+
+<div id="problem" class="problem-display">Enter numbers and click Start.</div>
+<div id="step" class="step-box" style="display:none;"></div>
+<div class="controls">
+  <button id="prevBtn" class="secondary" onclick="prevStep()" disabled>← Previous</button>
+  <button id="nextBtn" onclick="nextStep()" disabled>Next Step →</button>
+</div>
+<div id="progress" class="progress"></div>
+<div id="final" class="final-answer" style="display:none;"></div>
+
+<script>
+let steps = [];
+let currentStep = 0;
+let topStr = "", bottomStr = "";
+let topLabels = [], bottomLabels = [];
+let partialProducts = [];
+let carries = []; // temporary carry trackers per partial product
+
+function getLabels(len, startCharCode) {
+  return Array.from({length: len}, (_, i) => String.fromCharCode(startCharCode + i));
+}
+
+function start() {
+  const topInput = document.getElementById("top").value.trim();
+  const bottomInput = document.getElementById("bottom").value.trim();
+  if (!topInput || !bottomInput || isNaN(topInput) || isNaN(bottomInput)) {
+    alert("Please enter two whole numbers.");
+    return;
+  }
+  topStr = topInput.replace(/^0+/, "") || "0";
+  bottomStr = bottomInput.replace(/^0+/, "") || "0";
+  if (topStr.length > 6 || bottomStr.length > 6) {
+    alert("For now, keep numbers to 6 digits or fewer.");
+    return;
+  }
+
+  topLabels = getLabels(topStr.length, 65); // A, B, C...
+  bottomLabels = getLabels(bottomStr.length, 65 + topStr.length); // continues
+
+  // Build steps
+  steps = [];
+  partialProducts = [];
+  const topDigits = topStr.split("").map(Number).reverse(); // right to left for processing
+  const bottomDigits = bottomStr.split("").map(Number).reverse();
+
+  const places = ["ones", "tens", "hundreds", "thousands", "ten-thousands", "hundred-thousands", "millions"];
+
+  // Generate multiplication steps
+  for (let bIdx = 0; bIdx < bottomDigits.length; bIdx++) {
+    const bDigit = bottomDigits[bIdx];
+    const bLabel = bottomLabels[bottomStr.length - 1 - bIdx];
+    const shift = bIdx;
+
+    // Placeholder zeros instruction
+    if (shift > 0) {
+      let text;
+      if (shift === 1) {
+        text = `Now place a zero in the ones place of the next line because we are multiplying by a multiple of 10.`;
+      } else if (shift === 2) {
+        text = `Now place a zero in the ones place and a zero in the tens place of the next line because we are multiplying by a multiple of 100.`;
+      } else if (shift === 3) {
+        text = `Now place a zero in the ones place, a zero in the tens place, and a zero in the hundreds place of the next line because we are multiplying by a multiple of 1000.`;
+      } else {
+        // fallback for larger (unlikely for 5th grade)
+        const placeList = [];
+        for (let p = 0; p < shift; p++) {
+          placeList.push(`a zero in the ${places[p]} place`);
+        }
+        text = `Now place ${placeList.join(", ")} of the next line because we are multiplying by a multiple of ${"1" + "0".repeat(shift)}.`;
+      }
+      steps.push({
+        type: "placeholder",
+        text: text,
+        shift
+      });
+    }
+
+    let carry = 0;
+    const productDigits = [];
+    for (let tIdx = 0; tIdx < topDigits.length; tIdx++) {
+      const tDigit = topDigits[tIdx];
+      const tLabel = topLabels[topStr.length - 1 - tIdx];
+      const product = tDigit * bDigit + carry;
+      const write = product % 10;
+      const newCarry = Math.floor(product / 10);
+      productDigits.push(write);
+
+      const writePlace = places[shift + tIdx] || "higher";
+      const nextPlace = places[shift + tIdx + 1] || "higher";
+
+      let prompt = `Multiply <strong>${bLabel} (${bDigit})</strong> × <strong>${tLabel} (${tDigit})</strong>.`;
+      if (carry > 0) {
+        const prevPlace = places[shift + tIdx] || "higher"; // the place where the regroup is sitting
+        prompt += ` Don’t forget to add the <strong>${carry}</strong> you regrouped to the top of the <strong>${prevPlace} place</strong>.`;
+      }
+
+      steps.push({
+        type: "multiply",
+        prompt: prompt,
+        expected: product,
+        write,
+        newCarry,
+        writePlace,
+        nextPlace,
+        bLabel,
+        tLabel,
+        checked: false
+      });
+      carry = newCarry;
+    }
+    if (carry > 0) {
+      const finalPlace = places[shift + topDigits.length] || "higher";
+      steps.push({
+        type: "finalCarry",
+        text: `Write the final regrouped <strong>${carry}</strong> in the <strong>${finalPlace} place</strong> of this partial product.`,
+        carry
+      });
+      productDigits.push(carry);
+    }
+    // Store the partial product (reversed digits + zeros)
+    const pp = productDigits.reverse().join("") + "0".repeat(shift);
+    partialProducts.push(pp);
+  }
+
+  // Addition steps (simple high-level for now)
+  steps.push({
+    type: "add",
+    text: "Now carefully add all the partial product lines together, lining up the places. Start from the rightmost column and regroup as needed.",
+  });
+
+  const finalProduct = (BigInt(topStr) * BigInt(bottomStr)).toString();
+  steps.push({
+    type: "done",
+    text: `You should get the final answer: <strong>${finalProduct}</strong>.`,
+    answer: finalProduct
+  });
+
+  currentStep = 0;
+  document.getElementById("nextBtn").disabled = false;
+  document.getElementById("prevBtn").disabled = true;
+  document.getElementById("final").style.display = "none";
+  renderProblem();
+  showStep();
+}
+
+function renderProblem() {
+  const topPadded = topStr.padStart(Math.max(topStr.length, bottomStr.length));
+  const bottomPadded = bottomStr.padStart(Math.max(topStr.length, bottomStr.length));
+  let html = "";
+  // Top with labels above
+  html += " ".repeat(2) + topLabels.map(l => `<span class="label">${l}</span>`).join(" ") + "\n";
+  html += "  " + topStr.split("").join(" ") + "\n";
+  html += "× " + bottomStr.split("").join(" ") + "\n";
+  html += "  " + bottomLabels.map(l => `<span class="label">${l}</span>`).join(" ") + "\n";
+  html += "─".repeat(Math.max(topStr.length, bottomStr.length) * 2 + 2);
+  document.getElementById("problem").innerHTML = html;
+}
+
+function showStep() {
+  if (currentStep < 0 || currentStep >= steps.length) return;
+  const s = steps[currentStep];
+  const stepEl = document.getElementById("step");
+  stepEl.style.display = "block";
+
+  let html = `<strong>Step ${currentStep + 1} of ${steps.length}</strong><br><br>`;
+
+  if (s.type === "multiply") {
+    html += s.prompt;
+    html += `<div class="input-area">
+      <span>Enter the product:</span>
+      <input type="number" id="answerInput" placeholder="?" onkeydown="if(event.key==='Enter') checkAnswer()">
+      <button onclick="checkAnswer()">Check</button>
+    </div>
+    <div id="feedback" class="feedback"></div>
+    <div id="writeInstr" class="write-instruction" style="display:none;"></div>`;
+    document.getElementById("nextBtn").disabled = !s.checked;
+  } else if (s.type === "placeholder") {
+    html += s.text;
+    document.getElementById("nextBtn").disabled = false;
+  } else if (s.type === "finalCarry") {
+    html += s.text;
+    document.getElementById("nextBtn").disabled = false;
+  } else if (s.type === "add") {
+    html += s.text;
+    document.getElementById("nextBtn").disabled = false;
+  } else if (s.type === "done") {
+    html += s.text;
+    document.getElementById("nextBtn").disabled = true;
+    document.getElementById("final").style.display = "block";
+    document.getElementById("final").innerHTML = `Final Answer: ${s.answer}`;
+  }
+
+  stepEl.innerHTML = html;
+  document.getElementById("progress").textContent = `Progress: ${currentStep + 1} / ${steps.length}`;
+  document.getElementById("prevBtn").disabled = currentStep === 0;
+
+  if (s.type === "multiply" && s.checked) {
+    // Re-show the correct feedback if going back
+    document.getElementById("feedback").className = "feedback correct";
+    document.getElementById("feedback").textContent = "Correct!";
+    showWriteInstruction(s);
+    document.getElementById("nextBtn").disabled = false;
+  } else if (s.type !== "done") {
+    document.getElementById("final").style.display = "none";
+  }
+}
+
+function checkAnswer() {
+  const s = steps[currentStep];
+  if (s.type !== "multiply") return;
+  const input = document.getElementById("answerInput");
+  const val = parseInt(input.value, 10);
+  const feedback = document.getElementById("feedback");
+  if (isNaN(val)) {
+    feedback.className = "feedback wrong";
+    feedback.textContent = "Please enter a number.";
+    return;
+  }
+  if (val === s.expected) {
+    feedback.className = "feedback correct";
+    feedback.textContent = "Correct!";
+    s.checked = true;
+    showWriteInstruction(s);
+    document.getElementById("nextBtn").disabled = false;
+  } else {
+    feedback.className = "feedback wrong";
+    feedback.textContent = "Not quite. Try again.";
+    document.getElementById("nextBtn").disabled = true;
+  }
+}
+
+function showWriteInstruction(s) {
+  const el = document.getElementById("writeInstr");
+  let text = "";
+  if (s.newCarry > 0) {
+    text = `The <strong>${s.write}</strong> goes in the <strong>${s.writePlace} place</strong> and the <strong>${s.newCarry}</strong> is regrouped to the top of the <strong>${s.nextPlace} place</strong>.`;
+  } else {
+    text = `Write <strong>${s.write}</strong> in the <strong>${s.writePlace} place</strong>. No regroup.`;
+  }
+  el.innerHTML = text;
+  el.style.display = "block";
+}
+
+function nextStep() {
+  if (currentStep < steps.length - 1) {
+    currentStep++;
+    showStep();
+  }
+}
+function prevStep() {
+  if (currentStep > 0) {
+    currentStep--;
+    showStep();
+  }
+}
+</script>
+</body>
+</html>
