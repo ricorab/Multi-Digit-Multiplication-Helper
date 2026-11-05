@@ -68,9 +68,59 @@
   .input-area {
     margin-top: 12px;
     display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .check-controls {
+    display: flex;
     gap: 10px;
     align-items: center;
     flex-wrap: wrap;
+  }
+  .visual-side {
+    font-family: 'Courier New', monospace;
+    font-size: 1.2rem;
+    background: #f8f9fa;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 8px;
+    line-height: 1;
+    display: inline-block;
+  }
+  .visual-side table {
+    border-collapse: collapse;
+    margin: 0 auto;
+  }
+  .visual-side td {
+    width: 1.4em;
+    text-align: center;
+    padding: 0;
+    height: 1.3em;
+  }
+  .visual-side .carry {
+    color: #d35400;
+    font-size: 0.75em;
+    font-weight: bold;
+  }
+  .visual-side .regroup-box {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 1px solid #aaa;
+    border-radius: 2px;
+    font-size: 11px;
+    line-height: 12px;
+    text-align: center;
+    color: #d35400;
+    font-weight: bold;
+    vertical-align: middle;
+  }
+  .visual-side .write {
+    color: #0066cc;
+    font-weight: bold;
+    background: #e7f3ff;
+    border-radius: 3px;
   }
   .input-area input {
     font-size: 1.2rem;
@@ -91,6 +141,35 @@
     background: #e7f3ff;
     border-left: 4px solid #0066cc;
     border-radius: 4px;
+  }
+  .visual-mock {
+    margin-top: 12px;
+    font-family: 'Courier New', monospace;
+    font-size: 1.3rem;
+    background: #f8f9fa;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 10px;
+    text-align: center;
+    line-height: 1.2;
+  }
+  .visual-mock .carry {
+    color: #d35400;
+    font-size: 0.85rem;
+    font-weight: bold;
+  }
+  .visual-mock .write {
+    color: #0066cc;
+    font-weight: bold;
+    background: #e7f3ff;
+    padding: 0 4px;
+    border-radius: 3px;
+  }
+  .visual-mock .place-label {
+    font-size: 0.7rem;
+    color: #666;
+    display: block;
+    margin-top: 2px;
   }
   .controls {
     display: flex;
@@ -183,6 +262,8 @@ function start() {
         text = `Now place a zero in the ones place and a zero in the tens place of the next line because we are multiplying by a multiple of 100.`;
       } else if (shift === 3) {
         text = `Now place a zero in the ones place, a zero in the tens place, and a zero in the hundreds place of the next line because we are multiplying by a multiple of 1000.`;
+      } else if (shift === 4) {
+        text = `Now place a zero in the ones place, a zero in the tens place, a zero in the hundreds place, and a zero in the thousands place of the next line because we are multiplying by a multiple of 10000.`;
       } else {
         // fallback for larger (unlikely for 5th grade)
         const placeList = [];
@@ -213,8 +294,9 @@ function start() {
 
       let prompt = `Multiply <strong>${bLabel} (${bDigit})</strong> × <strong>${tLabel} (${tDigit})</strong>.`;
       if (carry > 0) {
-        const prevPlace = places[shift + tIdx] || "higher"; // the place where the regroup is sitting
-        prompt += ` Don’t forget to add the <strong>${carry}</strong> you regrouped to the top of the <strong>${prevPlace} place</strong>.`;
+        const topPlaces = ["ones", "tens", "hundreds", "thousands", "ten-thousands"];
+        const prevTopPlace = topPlaces[tIdx] || "higher";
+        prompt += ` Don’t forget to add the <strong>${carry}</strong> you regrouped to the top of the <strong>${prevTopPlace} place</strong>.`;
       }
 
       steps.push({
@@ -225,6 +307,8 @@ function start() {
         newCarry,
         writePlace,
         nextPlace,
+        tIdx,
+        shift,
         bLabel,
         tLabel,
         checked: false
@@ -232,12 +316,6 @@ function start() {
       carry = newCarry;
     }
     if (carry > 0) {
-      const finalPlace = places[shift + topDigits.length] || "higher";
-      steps.push({
-        type: "finalCarry",
-        text: `Write the final regrouped <strong>${carry}</strong> in the <strong>${finalPlace} place</strong> of this partial product.`,
-        carry
-      });
       productDigits.push(carry);
     }
     // Store the partial product (reversed digits + zeros)
@@ -245,7 +323,7 @@ function start() {
     partialProducts.push(pp);
   }
 
-  // Addition steps (simple high-level for now)
+  // Addition steps
   steps.push({
     type: "add",
     text: "Now carefully add all the partial product lines together, lining up the places. Start from the rightmost column and regroup as needed.",
@@ -253,8 +331,8 @@ function start() {
 
   const finalProduct = (BigInt(topStr) * BigInt(bottomStr)).toString();
   steps.push({
-    type: "done",
-    text: `You should get the final answer: <strong>${finalProduct}</strong>.`,
+    type: "finalAnswer",
+    text: "Enter your final answer:",
     answer: finalProduct
   });
 
@@ -290,15 +368,82 @@ function showStep() {
   if (s.type === "multiply") {
     html += s.prompt;
     html += `<div class="input-area">
-      <span>Enter the product:</span>
-      <input type="number" id="answerInput" placeholder="?" onkeydown="if(event.key==='Enter') checkAnswer()">
-      <button onclick="checkAnswer()">Check</button>
+      <div class="check-controls">
+        <span>Enter the product:</span>
+        <input type="number" id="answerInput" placeholder="?" onkeydown="if(event.key==='Enter') checkAnswer()">
+        <button onclick="checkAnswer()">Check</button>
+      </div>
+      <div id="visualSide" class="visual-side" style="display:none;"></div>
     </div>
     <div id="feedback" class="feedback"></div>
     <div id="writeInstr" class="write-instruction" style="display:none;"></div>`;
     document.getElementById("nextBtn").disabled = !s.checked;
   } else if (s.type === "placeholder") {
     html += s.text;
+    html += `<div class="visual-side" style="margin-top:12px; display:inline-block;">`;
+    const shift = s.shift || 1;
+    const placeIndex = { "ones":0, "tens":1, "hundreds":2, "thousands":3, "ten-thousands":4, "hundred-thousands":5, "millions":6 };
+
+    // Collect all completed partial products so far
+    const completedPPs = [];
+    let currentPP = {};
+    for (let i = 0; i < currentStep; i++) {
+      const st = steps[i];
+      if (st.type === "placeholder") {
+        if (Object.keys(currentPP).length) completedPPs.push(currentPP);
+        currentPP = {};
+        // add the zeros for that line
+        for (let p = 0; p < (st.shift||0); p++) {
+          const place = Object.keys(placeIndex).find(k => placeIndex[k] === p);
+          if (place) currentPP[place] = 0;
+        }
+      } else if (st.type === "multiply") {
+        currentPP[st.writePlace] = st.write;
+        const next = steps[i+1];
+        if (st.newCarry > 0 && (!next || next.type === "placeholder" || next.type === "add")) {
+          currentPP[st.nextPlace] = st.newCarry;
+        }
+      }
+    }
+    if (Object.keys(currentPP).length) completedPPs.push(currentPP);
+
+    const allPlaces = completedPPs.flatMap(pp => Object.keys(pp).map(p => placeIndex[p]||0));
+    const maxPlace = allPlaces.length ? Math.max(...allPlaces, shift) : shift;
+    const baseLen = Math.max(topStr.length, bottomStr.length);
+    const totalCols = Math.max(baseLen, maxPlace + 1);
+
+    const topPadded = topStr.padStart(totalCols);
+    const botPadded = bottomStr.padStart(totalCols);
+
+    html += `<table>`;
+    html += `<tr><td></td>`;
+    for (let i = 0; i < totalCols; i++) html += `<td>${topPadded[i] === " " ? "" : topPadded[i]}</td>`;
+    html += `</tr>`;
+    html += `<tr><td>×</td>`;
+    for (let i = 0; i < totalCols; i++) html += `<td>${botPadded[i] === " " ? "" : botPadded[i]}</td>`;
+    html += `</tr>`;
+    html += `<tr><td></td>`;
+    for (let i = 0; i < totalCols; i++) html += `<td>─</td>`;
+    html += `</tr>`;
+
+    // All previous partial products
+    completedPPs.forEach(pp => {
+      html += `<tr><td></td>`;
+      for (let i = 0; i < totalCols; i++) {
+        const place = Object.keys(placeIndex).find(k => placeIndex[k] === (totalCols - 1 - i));
+        html += `<td>${pp[place] !== undefined ? pp[place] : ""}</td>`;
+      }
+      html += `</tr>`;
+    });
+
+    // New line with zero(s)
+    html += `<tr><td></td>`;
+    for (let i = 0; i < totalCols; i++) {
+      const fromRight = totalCols - 1 - i;
+      html += `<td>${fromRight < shift ? `<span class="write">0</span>` : ""}</td>`;
+    }
+    html += `</tr>`;
+    html += `</table></div>`;
     document.getElementById("nextBtn").disabled = false;
   } else if (s.type === "finalCarry") {
     html += s.text;
@@ -306,6 +451,16 @@ function showStep() {
   } else if (s.type === "add") {
     html += s.text;
     document.getElementById("nextBtn").disabled = false;
+  } else if (s.type === "finalAnswer") {
+    html += s.text;
+    html += `<div class="input-area" style="margin-top:12px;">
+      <div class="check-controls">
+        <input type="number" id="finalInput" placeholder="Your answer" onkeydown="if(event.key==='Enter') checkFinal()">
+        <button onclick="checkFinal()">Check</button>
+      </div>
+    </div>
+    <div id="finalFeedback" class="feedback"></div>`;
+    document.getElementById("nextBtn").disabled = true;
   } else if (s.type === "done") {
     html += s.text;
     document.getElementById("nextBtn").disabled = true;
@@ -355,13 +510,187 @@ function checkAnswer() {
 function showWriteInstruction(s) {
   const el = document.getElementById("writeInstr");
   let text = "";
-  if (s.newCarry > 0) {
-    text = `The <strong>${s.write}</strong> goes in the <strong>${s.writePlace} place</strong> and the <strong>${s.newCarry}</strong> is regrouped to the top of the <strong>${s.nextPlace} place</strong>.`;
+
+  // Is this the final digit of the current partial product?
+  const nextStep = steps[currentStep + 1];
+  const isFinalCarry = s.newCarry > 0 && (!nextStep || nextStep.type === "finalCarry" || nextStep.type === "placeholder" || nextStep.type === "add");
+
+  // The regroup goes above the next digit of the top number.
+  // Describe that place relative to the top number, not the product.
+  const topPlaces = ["ones", "tens", "hundreds", "thousands", "ten-thousands"];
+  const nextTopPlace = topPlaces[s.tIdx + 1] || "higher";
+
+  if (s.newCarry > 0 && isFinalCarry) {
+    text = `The <strong>${s.write}</strong> goes in the <strong>${s.writePlace} place</strong> and the <strong>${s.newCarry}</strong> goes in the <strong>${s.nextPlace} place</strong> of this partial product.`;
+  } else if (s.newCarry > 0) {
+    text = `The <strong>${s.write}</strong> goes in the <strong>${s.writePlace} place</strong> and the <strong>${s.newCarry}</strong> is regrouped to the top of the <strong>${nextTopPlace} place</strong>.`;
   } else {
     text = `Write <strong>${s.write}</strong> in the <strong>${s.writePlace} place</strong>. No regroup.`;
   }
   el.innerHTML = text;
   el.style.display = "block";
+
+  const visualEl = document.getElementById("visualSide");
+  if (visualEl) {
+    const placeIndex = {
+      "ones": 0,
+      "tens": 1,
+      "hundreds": 2,
+      "thousands": 3,
+      "ten-thousands": 4,
+      "hundred-thousands": 5
+    };
+
+    // Collect all previous completed partial products
+    // A line is completed only when we move past it to a new placeholder
+    const completedPPs = [];
+    let tempPP = {};
+    for (let i = 0; i < currentStep; i++) {
+      const st = steps[i];
+      if (st.type === "placeholder") {
+        if (Object.keys(tempPP).length) completedPPs.push(tempPP);
+        tempPP = {};
+        for (let p = 0; p < (st.shift||0); p++) {
+          const place = Object.keys(placeIndex).find(k => placeIndex[k] === p);
+          if (place) tempPP[place] = 0;
+        }
+      } else if (st.type === "multiply") {
+        tempPP[st.writePlace] = st.write;
+        const next = steps[i+1];
+        if (st.newCarry > 0 && (!next || next.type === "placeholder" || next.type === "add")) {
+          tempPP[st.nextPlace] = st.newCarry;
+        }
+      }
+    }
+    // Do NOT push tempPP here — it belongs to the current line
+    // Only lines that ended at a placeholder are completed
+
+    // Current line digits
+    const written = {};
+    let shift = 0;
+    for (let i = currentStep; i >= 0; i--) {
+      if (steps[i].type === "placeholder") {
+        shift = steps[i].shift || 0;
+        break;
+      }
+    }
+    for (let p = 0; p < shift; p++) {
+      const place = Object.keys(placeIndex).find(k => placeIndex[k] === p);
+      if (place) written[place] = 0;
+    }
+    for (let i = currentStep; i >= 0; i--) {
+      const step = steps[i];
+      if (step.type === "placeholder") break;
+      if (step.type === "multiply" && (i === currentStep || step.checked)) {
+        written[step.writePlace] = step.write;
+        if (step.newCarry > 0 && i === currentStep && isFinalCarry) {
+          written[step.nextPlace] = step.newCarry;
+        }
+      }
+    }
+
+    const allPlaces = [...completedPPs.flatMap(pp => Object.keys(pp)), ...Object.keys(written)]
+      .map(p => placeIndex[p] || 0);
+    // Make sure the regroup column exists even if nothing is written there yet
+    if (s.newCarry > 0 && !isFinalCarry && placeIndex[s.nextPlace] !== undefined) {
+      allPlaces.push(placeIndex[s.nextPlace]);
+    }
+    const maxPlace = allPlaces.length ? Math.max(...allPlaces) : 0;
+    const baseLen = Math.max(topStr.length, bottomStr.length);
+    const totalCols = Math.max(baseLen, maxPlace + 1);
+
+    const topPadded = topStr.padStart(totalCols);
+    const botPadded = bottomStr.padStart(totalCols);
+
+    let html = `<table>`;
+
+    // Regroup row — a box for every place
+    // The regroup goes directly above the next digit of the top number
+    html += `<tr>`;
+    html += `<td></td>`;
+    for (let i = 0; i < totalCols; i++) {
+      let cell = "";
+      if (s.newCarry > 0 && !isFinalCarry && s.tIdx !== undefined) {
+        // Next top digit is one place left of the digit we just multiplied
+        // Top digits are right-aligned, so digit at tIdx is at column (totalCols - 1 - tIdx)
+        // Next digit (tIdx+1) is at column (totalCols - 2 - tIdx)
+        const nextTopCol = totalCols - 1 - (s.tIdx + 1);
+        if (i === nextTopCol && nextTopCol >= 0) {
+          cell = `<span class="carry">${s.newCarry}</span>`;
+        }
+      }
+      html += `<td><span class="regroup-box">${cell}</span></td>`;
+    }
+    html += `</tr>`;
+
+    // Top number
+    html += `<tr>`;
+    html += `<td></td>`;
+    for (let i = 0; i < totalCols; i++) {
+      html += `<td>${topPadded[i] === " " ? "" : topPadded[i]}</td>`;
+    }
+    html += `</tr>`;
+
+    // Bottom number
+    html += `<tr>`;
+    html += `<td>×</td>`;
+    for (let i = 0; i < totalCols; i++) {
+      html += `<td>${botPadded[i] === " " ? "" : botPadded[i]}</td>`;
+    }
+    html += `</tr>`;
+
+    // Line
+    html += `<tr>`;
+    html += `<td></td>`;
+    for (let i = 0; i < totalCols; i++) {
+      html += `<td>─</td>`;
+    }
+    html += `</tr>`;
+
+    // Previous partial products
+    completedPPs.forEach(pp => {
+      html += `<tr><td></td>`;
+      for (let i = 0; i < totalCols; i++) {
+        const place = Object.keys(placeIndex).find(p => placeIndex[p] === (totalCols - 1 - i));
+        html += `<td>${pp[place] !== undefined ? pp[place] : ""}</td>`;
+      }
+      html += `</tr>`;
+    });
+
+    // Current partial product
+    html += `<tr>`;
+    html += `<td></td>`;
+    for (let i = 0; i < totalCols; i++) {
+      const place = Object.keys(placeIndex).find(p => placeIndex[p] === (totalCols - 1 - i));
+      let cell = "";
+      if (written[place] !== undefined) {
+        const isCurrent = (place === s.writePlace);
+        cell = isCurrent ? `<span class="write">${written[place]}</span>` : written[place];
+      }
+      html += `<td>${cell}</td>`;
+    }
+    html += `</tr>`;
+
+    html += `</table>`;
+    visualEl.innerHTML = html;
+    visualEl.style.display = "block";
+  }
+}
+
+function checkFinal() {
+  const s = steps[currentStep];
+  const input = document.getElementById("finalInput");
+  const feedback = document.getElementById("finalFeedback");
+  const val = input.value.trim();
+  if (val === s.answer) {
+    feedback.className = "feedback correct";
+    feedback.textContent = "Correct! " + s.answer;
+    document.getElementById("final").style.display = "block";
+    document.getElementById("final").innerHTML = `Final Answer: ${s.answer}`;
+  } else {
+    feedback.className = "feedback wrong";
+    feedback.textContent = "Not quite. Check your addition and try again.";
+  }
 }
 
 function nextStep() {
